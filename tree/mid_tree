@@ -1,0 +1,542 @@
+#include <bits/stdc++.h>
+using namespace std;
+
+struct TreeNode {
+    int val;
+    TreeNode* left;
+    TreeNode* right;
+
+    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}
+};
+
+// Level-order array se tree build karta hai.
+// -1 ka matlab null/missing node.
+TreeNode* buildTree(const vector<int>& values) {
+    if (values.empty() || values[0] == -1) return nullptr;
+
+    TreeNode* root = new TreeNode(values[0]);
+    queue<TreeNode*> q;
+    q.push(root);
+
+    int i = 1;
+    while (!q.empty() && i < values.size()) {
+        TreeNode* node = q.front();
+        q.pop();
+
+        if (i < values.size() && values[i] != -1) {
+            node->left = new TreeNode(values[i]);
+            q.push(node->left);
+        }
+        i++;
+
+        if (i < values.size() && values[i] != -1) {
+            node->right = new TreeNode(values[i]);
+            q.push(node->right);
+        }
+        i++;
+    }
+
+    return root;
+}
+
+class Solution {
+    bool isLeaf(TreeNode* node) {
+        return node && !node->left && !node->right;
+    }
+
+    void addLeaves(TreeNode* node, vector<int>& result) {
+        if (!node) return;
+
+        if (isLeaf(node)) {
+            result.push_back(node->val);
+            return;
+        }
+
+        addLeaves(node->left, result);
+        addLeaves(node->right, result);
+    }
+
+    void collectPaths(TreeNode* node, vector<int>& path,
+                      vector<vector<int>>& result) {
+        if (!node) return;
+
+        path.push_back(node->val);
+
+        if (isLeaf(node)) {
+            result.push_back(path);
+        } else {
+            collectPaths(node->left, path, result);
+            collectPaths(node->right, path, result);
+        }
+
+        path.pop_back();
+    }
+
+    TreeNode* findNode(TreeNode* root, int value) {
+        if (!root) return nullptr;
+        if (root->val == value) return root;
+
+        TreeNode* leftResult = findNode(root->left, value);
+        if (leftResult) return leftResult;
+
+        return findNode(root->right, value);
+    }
+
+    void setParents(TreeNode* root,
+                    unordered_map<TreeNode*, TreeNode*>& parent) {
+        if (!root) return;
+
+        queue<TreeNode*> q;
+        q.push(root);
+        parent[root] = nullptr;
+
+        while (!q.empty()) {
+            TreeNode* node = q.front();
+            q.pop();
+
+            if (node->left) {
+                parent[node->left] = node;
+                q.push(node->left);
+            }
+            if (node->right) {
+                parent[node->right] = node;
+                q.push(node->right);
+            }
+        }
+    }
+
+    void flattenHelper(TreeNode* node, TreeNode*& previous) {
+        if (!node) return;
+
+        flattenHelper(node->right, previous);
+        flattenHelper(node->left, previous);
+
+        node->right = previous;
+        node->left = nullptr;
+        previous = node;
+    }
+
+public:
+    // 1. Zigzag / Spiral Traversal
+    vector<vector<int>> zigzagTraversal(TreeNode* root) {
+        vector<vector<int>> result;
+        if (!root) return result;
+
+        queue<TreeNode*> q;
+        q.push(root);
+        bool leftToRight = true;
+
+        while (!q.empty()) {
+            int size = q.size();
+            vector<int> level(size);
+
+            for (int i = 0; i < size; i++) {
+                TreeNode* node = q.front();
+                q.pop();
+
+                int index = leftToRight ? i : size - 1 - i;
+                level[index] = node->val;
+
+                if (node->left) q.push(node->left);
+                if (node->right) q.push(node->right);
+            }
+
+            result.push_back(level);
+            leftToRight = !leftToRight;
+        }
+
+        return result;
+    }
+
+    // 2. Boundary Traversal (anti-clockwise)
+    vector<int> boundaryTraversal(TreeNode* root) {
+        vector<int> result;
+        if (!root) return result;
+
+        if (!isLeaf(root)) result.push_back(root->val);
+
+        TreeNode* node = root->left;
+        while (node) {
+            if (!isLeaf(node)) result.push_back(node->val);
+            node = node->left ? node->left : node->right;
+        }
+
+        addLeaves(root, result);
+
+        vector<int> rightBoundary;
+        node = root->right;
+        while (node) {
+            if (!isLeaf(node)) rightBoundary.push_back(node->val);
+            node = node->right ? node->right : node->left;
+        }
+
+        reverse(rightBoundary.begin(), rightBoundary.end());
+        result.insert(result.end(), rightBoundary.begin(), rightBoundary.end());
+
+        return result;
+    }
+
+    // 3. Vertical Order Traversal
+    vector<vector<int>> verticalTraversal(TreeNode* root) {
+        vector<vector<int>> result;
+        if (!root) return result;
+
+        // column -> row -> values
+        map<int, map<int, multiset<int>>> nodes;
+        queue<tuple<TreeNode*, int, int>> q;
+        q.push({root, 0, 0});
+
+        while (!q.empty()) {
+            auto [node, row, col] = q.front();
+            q.pop();
+
+            nodes[col][row].insert(node->val);
+
+            if (node->left) q.push({node->left, row + 1, col - 1});
+            if (node->right) q.push({node->right, row + 1, col + 1});
+        }
+
+        for (auto& [col, rows] : nodes) {
+            vector<int> column;
+            for (auto& [row, values] : rows) {
+                column.insert(column.end(), values.begin(), values.end());
+            }
+            result.push_back(column);
+        }
+
+        return result;
+    }
+
+    // 4. Top View
+    vector<int> topView(TreeNode* root) {
+        vector<int> result;
+        if (!root) return result;
+
+        map<int, int> top;
+        queue<pair<TreeNode*, int>> q;
+        q.push({root, 0});
+
+        while (!q.empty()) {
+            auto [node, col] = q.front();
+            q.pop();
+
+            if (!top.count(col)) top[col] = node->val;
+
+            if (node->left) q.push({node->left, col - 1});
+            if (node->right) q.push({node->right, col + 1});
+        }
+
+        for (auto& [col, value] : top) result.push_back(value);
+        return result;
+    }
+
+    // 5. Bottom View
+    vector<int> bottomView(TreeNode* root) {
+        vector<int> result;
+        if (!root) return result;
+
+        map<int, int> bottom;
+        queue<pair<TreeNode*, int>> q;
+        q.push({root, 0});
+
+        while (!q.empty()) {
+            auto [node, col] = q.front();
+            q.pop();
+
+            bottom[col] = node->val;
+
+            if (node->left) q.push({node->left, col - 1});
+            if (node->right) q.push({node->right, col + 1});
+        }
+
+        for (auto& [col, value] : bottom) result.push_back(value);
+        return result;
+    }
+
+    // 6. Left View / Right View
+    vector<int> leftView(TreeNode* root) {
+        vector<int> result;
+        if (!root) return result;
+
+        queue<TreeNode*> q;
+        q.push(root);
+
+        while (!q.empty()) {
+            int size = q.size();
+
+            for (int i = 0; i < size; i++) {
+                TreeNode* node = q.front();
+                q.pop();
+
+                if (i == 0) result.push_back(node->val);
+
+                if (node->left) q.push(node->left);
+                if (node->right) q.push(node->right);
+            }
+        }
+
+        return result;
+    }
+
+    vector<int> rightView(TreeNode* root) {
+        vector<int> result;
+        if (!root) return result;
+
+        queue<TreeNode*> q;
+        q.push(root);
+
+        while (!q.empty()) {
+            int size = q.size();
+
+            for (int i = 0; i < size; i++) {
+                TreeNode* node = q.front();
+                q.pop();
+
+                if (i == size - 1) result.push_back(node->val);
+
+                if (node->left) q.push(node->left);
+                if (node->right) q.push(node->right);
+            }
+        }
+
+        return result;
+    }
+
+    // 7. Print / Return Root-to-Leaf Paths
+    vector<vector<int>> rootToLeafPaths(TreeNode* root) {
+        vector<vector<int>> result;
+        vector<int> path;
+        collectPaths(root, path, result);
+        return result;
+    }
+
+    // 8. Lowest Common Ancestor, values unique hone chahiye
+    TreeNode* lowestCommonAncestor(TreeNode* root, int p, int q) {
+        if (!root || root->val == p || root->val == q) return root;
+
+        TreeNode* left = lowestCommonAncestor(root->left, p, q);
+        TreeNode* right = lowestCommonAncestor(root->right, p, q);
+
+        if (left && right) return root;
+        return left ? left : right;
+    }
+
+    // 9. Maximum Width
+    unsigned long long maximumWidth(TreeNode* root) {
+        if (!root) return 0;
+
+        unsigned long long answer = 0;
+        queue<pair<TreeNode*, unsigned long long>> q;
+        q.push({root, 0});
+
+        while (!q.empty()) {
+            int size = q.size();
+            unsigned long long base = q.front().second;
+            unsigned long long first = 0, last = 0;
+
+            for (int i = 0; i < size; i++) {
+                auto [node, index] = q.front();
+                q.pop();
+
+                index -= base;
+                if (i == 0) first = index;
+                if (i == size - 1) last = index;
+
+                if (node->left) q.push({node->left, 2 * index + 1});
+                if (node->right) q.push({node->right, 2 * index + 2});
+            }
+
+            answer = max(answer, last - first + 1);
+        }
+
+        return answer;
+    }
+
+    // 10. Nodes at distance K from target value
+    vector<int> nodesAtDistanceK(TreeNode* root, int targetValue, int k) {
+        vector<int> result;
+        if (!root) return result;
+
+        TreeNode* target = findNode(root, targetValue);
+        if (!target) return result;
+
+        unordered_map<TreeNode*, TreeNode*> parent;
+        setParents(root, parent);
+
+        queue<TreeNode*> q;
+        unordered_set<TreeNode*> visited;
+        q.push(target);
+        visited.insert(target);
+
+        int distance = 0;
+        while (!q.empty()) {
+            int size = q.size();
+
+            if (distance == k) {
+                while (!q.empty()) {
+                    result.push_back(q.front()->val);
+                    q.pop();
+                }
+                break;
+            }
+
+            for (int i = 0; i < size; i++) {
+                TreeNode* node = q.front();
+                q.pop();
+
+                vector<TreeNode*> neighbours = {
+                    node->left, node->right, parent[node]
+                };
+
+                for (TreeNode* next : neighbours) {
+                    if (next && !visited.count(next)) {
+                        visited.insert(next);
+                        q.push(next);
+                    }
+                }
+            }
+
+            distance++;
+        }
+
+        return result;
+    }
+
+    // 11. Minimum time to burn tree from target value
+    int burnTime(TreeNode* root, int targetValue) {
+        if (!root) return 0;
+
+        TreeNode* target = findNode(root, targetValue);
+        if (!target) return -1;
+
+        unordered_map<TreeNode*, TreeNode*> parent;
+        setParents(root, parent);
+
+        queue<TreeNode*> q;
+        unordered_set<TreeNode*> visited;
+        q.push(target);
+        visited.insert(target);
+
+        int time = -1;
+
+        while (!q.empty()) {
+            int size = q.size();
+            time++;
+
+            for (int i = 0; i < size; i++) {
+                TreeNode* node = q.front();
+                q.pop();
+
+                vector<TreeNode*> neighbours = {
+                    node->left, node->right, parent[node]
+                };
+
+                for (TreeNode* next : neighbours) {
+                    if (next && !visited.count(next)) {
+                        visited.insert(next);
+                        q.push(next);
+                    }
+                }
+            }
+        }
+
+        return time;
+    }
+
+    // 12. Count nodes in a complete binary tree
+    int countCompleteTreeNodes(TreeNode* root) {
+        if (!root) return 0;
+
+        int leftHeight = 0;
+        int rightHeight = 0;
+
+        TreeNode* node = root;
+        while (node) {
+            leftHeight++;
+            node = node->left;
+        }
+
+        node = root;
+        while (node) {
+            rightHeight++;
+            node = node->right;
+        }
+
+        if (leftHeight == rightHeight) {
+            return (1 << leftHeight) - 1;
+        }
+
+        return 1 + countCompleteTreeNodes(root->left)
+                 + countCompleteTreeNodes(root->right);
+    }
+
+    // 13. Flatten Binary Tree to Linked List (preorder)
+    void flatten(TreeNode* root) {
+        TreeNode* previous = nullptr;
+        flattenHelper(root, previous);
+    }
+};
+
+// Print a vector
+template <typename T>
+void printVector(const vector<T>& values) {
+    for (const T& value : values) cout << value << " ";
+    cout << '\n';
+}
+
+int main() {
+    // Input tree: 1 2 3 4 5 -1 6
+    vector<int> levelOrder = {1, 2, 3, 4, 5, -1, 6};
+    TreeNode* root = buildTree(levelOrder);
+
+    Solution sol;
+
+    cout << "Zigzag traversal:\n";
+    for (const auto& level : sol.zigzagTraversal(root)) {
+        printVector(level);
+    }
+
+    cout << "Boundary: ";
+    printVector(sol.boundaryTraversal(root));
+
+    cout << "Vertical traversal:\n";
+    for (const auto& column : sol.verticalTraversal(root)) {
+        printVector(column);
+    }
+
+    cout << "Top view: ";
+    printVector(sol.topView(root));
+
+    cout << "Bottom view: ";
+    printVector(sol.bottomView(root));
+
+    cout << "Left view: ";
+    printVector(sol.leftView(root));
+
+    cout << "Right view: ";
+    printVector(sol.rightView(root));
+
+    cout << "Root-to-leaf paths:\n";
+    for (const auto& path : sol.rootToLeafPaths(root)) {
+        printVector(path);
+    }
+
+    cout << "Maximum width: " << sol.maximumWidth(root) << '\n';
+    cout << "Nodes at distance 2 from node 2: ";
+    printVector(sol.nodesAtDistanceK(root, 2, 2));
+
+    cout << "Burn time from node 2: " << sol.burnTime(root, 2) << '\n';
+    cout << "Node count (only if tree is complete): "
+         << sol.countCompleteTreeNodes(root) << '\n';
+
+    // Flatten last, since it modifies the tree.
+    sol.flatten(root);
+    cout << "Flattened tree: ";
+    while (root) {
+        cout << root->val << " ";
+        root = root->right;
+    }
+    cout << '\n';
+
+    return 0;
+}
